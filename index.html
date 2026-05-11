@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IBO + Multi-MID Operations Center</title>
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        navy: { 900: '#05111c', 800: '#0A2540', 700: '#113355' },
+                        teal: { 400: '#00E5D8', 500: '#00c3b8' },
+                        glass: 'rgba(10, 37, 64, 0.45)',
+                        glassBorder: 'rgba(255, 255, 255, 0.08)'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #05111c 0%, #0A2540 100%);
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+            margin: 0;
+        }
+
+        /* Glassmorphism */
+        .glass-card {
+            background: rgba(10, 37, 64, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: #00E5D8; border-radius: 4px; }
+
+        /* Animations */
+        .fade-in { animation: fadeIn 0.4s ease-in forwards; }
+        .fade-out { animation: fadeOut 0.4s ease-out forwards; pointer-events: none; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+        /* Routing Simulator Animation */
+        .routing-path {
+            width: 0%;
+            height: 2px;
+            background: #00E5D8;
+            box-shadow: 0 0 10px #00E5D8;
+            transition: width 1.5s ease-in-out;
+        }
+        .routing-node {
+            transition: all 0.3s;
+        }
+        .routing-node.active {
+            border-color: #00E5D8;
+            box-shadow: 0 0 15px rgba(0, 229, 216, 0.4);
+            color: #00E5D8;
+        }
+
+        /* Toast */
+        #toast-container {
+            position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .toast {
+            background: rgba(10, 37, 64, 0.9); border-left: 4px solid #00E5D8;
+            padding: 12px 20px; border-radius: 4px; border-top: 1px solid rgba(255,255,255,0.1);
+            border-right: 1px solid rgba(255,255,255,0.1); border-bottom: 1px solid rgba(255,255,255,0.1);
+            animation: slideIn 0.3s ease-out forwards, slideOut 0.3s ease-in 4s forwards;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1;} to { transform: translateX(100%); opacity: 0; } }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-900 transition-opacity duration-500">
+        <div class="glass-card p-10 rounded-2xl w-full max-w-md flex flex-col items-center">
+            <div class="w-16 h-16 rounded-full bg-teal-400/20 flex items-center justify-center mb-6">
+                <span class="material-icons text-teal-400 text-3xl">account_balance</span>
+            </div>
+            <h1 class="text-3xl font-bold text-white mb-2 tracking-tight">IBO Payments</h1>
+            <p class="text-gray-400 text-sm mb-8">Multi-MID Center Authorization</p>
+            
+            <div class="w-full space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 uppercase tracking-wider mb-1">Email</label>
+                    <input type="email" id="email" value="demo@client.com" class="w-full bg-navy-800 border border-glassBorder rounded-lg px-4 py-3 text-white focus:outline-none focus:border-teal-400 transition-colors">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 uppercase tracking-wider mb-1">Password</label>
+                    <input type="password" id="password" value="demo123" class="w-full bg-navy-800 border border-glassBorder rounded-lg px-4 py-3 text-white focus:outline-none focus:border-teal-400 transition-colors">
+                </div>
+                <button onclick="login()" class="w-full bg-teal-500 hover:bg-teal-400 text-navy-900 font-semibold rounded-lg px-4 py-3 mt-4 transition-colors shadow-[0_0_15px_rgba(0,229,216,0.3)]">
+                    Secure Login
+                </button>
+            </div>
+            
+            <p class="text-xs text-gray-500 mt-6">Demo Environment - Internal Use Only</p>
+        </div>
+    </div>
+
+    <!-- MAIN APP SCREEN -->
+    <div id="app-screen" class="hidden min-h-screen flex">
+        
+        <!-- SIDEBAR -->
+        <aside class="w-64 glass-card border-r border-glassBorder flex flex-col fixed h-full z-40">
+            <div class="p-6 border-b border-glassBorder flex items-center gap-3">
+                <span class="material-icons text-teal-400">account_balance</span>
+                <span class="font-bold text-lg tracking-wide">IBO Center</span>
+            </div>
+            <nav class="flex-1 py-4 space-y-1">
+                <a href="#" class="flex items-center px-6 py-3 bg-teal-400/10 text-teal-400 border-r-2 border-teal-400">
+                    <span class="material-icons text-sm mr-3">dashboard</span> Dashboard
+                </a>
+                <a href="#" class="flex items-center px-6 py-3 text-gray-400 hover:text-white hover:bg-navy-800/50 transition">
+                    <span class="material-icons text-sm mr-3">view_module</span> Multi-MIDs
+                </a>
+                <a href="#simulator" class="flex items-center px-6 py-3 text-gray-400 hover:text-white hover:bg-navy-800/50 transition">
+                    <span class="material-icons text-sm mr-3">route</span> Routing Simulator
+                </a>
+                <a href="#transactions" class="flex items-center px-6 py-3 text-gray-400 hover:text-white hover:bg-navy-800/50 transition">
+                    <span class="material-icons text-sm mr-3">receipt_long</span> Live Transactions
+                </a>
+                <a href="#chargebacks" class="flex items-center px-6 py-3 text-gray-400 hover:text-white hover:bg-navy-800/50 transition">
+                    <span class="material-icons text-sm mr-3">money_off</span> Chargebacks
+                </a>
+                <a href="#analytics" class="flex items-center px-6 py-3 text-gray-400 hover:text-white hover:bg-navy-800/50 transition">
+                    <span class="material-icons text-sm mr-3">analytics</span> Analytics
+                </a>
+            </nav>
+            <div class="p-6 border-t border-glassBorder text-xs text-gray-500">
+                Logged in as Demo User<br>
+                Session valid
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="ml-64 flex-1 flex flex-col min-h-screen relative">
+            
+            <!-- HEADER -->
+            <header class="h-20 glass-card border-b border-glassBorder flex items-center justify-between px-8 sticky top-0 z-30">
+                <h2 class="text-xl font-semibold">Global Operations Dashboard</h2>
+                
+                <div class="flex items-center gap-6">
+                    <!-- Currency Toggle -->
+                    <div class="flex items-center gap-3 bg-navy-800/50 px-4 py-2 rounded-full border border-glassBorder">
+                        <span class="text-xs font-semibold text-gray-300" id="lbl-eur">EUR</span>
+                        <div class="relative inline-block w-10 h-5 cursor-pointer" onclick="toggleCurrency()">
+                            <div class="w-full h-full bg-navy-900 rounded-full shadow-inner border border-glassBorder"></div>
+                            <div id="currency-toggle-knob" class="absolute left-1 top-1 w-3 h-3 bg-teal-400 rounded-full transition-transform duration-300"></div>
+                        </div>
+                        <span class="text-xs font-semibold text-gray-500" id="lbl-sar">SAR</span>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-navy-700 flex items-center justify-center">
+                            <span class="material-icons text-sm text-gray-300">notifications</span>
+                        </div>
+                        <div class="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center">
+                            <span class="material-icons text-sm text-navy-900">person</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- SCROLLABLE CONTENT -->
+            <div class="p-8 space-y-8 pb-20">
+                
+                <!-- MULTI-MID CARDS -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- MID 1 -->
+                    <div class="glass-card rounded-xl p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-sm font-semibold text-gray-300">MID-472819 (EU Main)</span>
+                            <span class="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_8px_#00E5D8]"></span>
+                        </div>
+                        <div class="text-2xl font-bold mb-1 money-val" data-eur="1452000">€1,452,000</div>
+                        <p class="text-xs text-gray-400 mb-4">Monthly Volume</p>
+                        <div class="flex justify-between text-xs border-t border-glassBorder pt-3">
+                            <span class="text-teal-400">99.2% Appr.</span>
+                            <span class="text-orange-400">0.42% CB</span>
+                        </div>
+                    </div>
+                    <!-- MID 2 -->
+                    <div class="glass-card rounded-xl p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-sm font-semibold text-gray-300">MID-472820 (MENA)</span>
+                            <span class="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_8px_#00E5D8]"></span>
+                        </div>
+                        <div class="text-2xl font-bold mb-1 money-val" data-eur="840500">€840,500</div>
+                        <p class="text-xs text-gray-400 mb-4">Monthly Volume</p>
+                        <div class="flex justify-between text-xs border-t border-glassBorder pt-3">
+                            <span class="text-teal-400">98.5% Appr.</span>
+                            <span class="text-orange-400">0.55% CB</span>
+                        </div>
+                    </div>
+                    <!-- MID 3 -->
+                    <div class="glass-card rounded-xl p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-sm font-semibold text-gray-300">MID-472821 (High Risk)</span>
+                            <span class="w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_8px_#facc15]"></span>
+                        </div>
+                        <div class="text-2xl font-bold mb-1 money-val" data-eur="215000">€215,000</div>
+                        <p class="text-xs text-gray-400 mb-4">Monthly Volume</p>
+                        <div class="flex justify-between text-xs border-t border-glassBorder pt-3">
+                            <span class="text-yellow-400">94.1% Appr.</span>
+                            <span class="text-red-400">1.20% CB</span>
+                        </div>
+                    </div>
+                    <!-- MID 4 -->
+                    <div class="glass-card rounded-xl p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-sm font-semibold text-gray-300">MID-472822 (B2B)</span>
+                            <span class="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_8px_#00E5D8]"></span>
+                        </div>
+                        <div class="text-2xl font-bold mb-1 money-val" data-eur="3240000">€3,240,000</div>
+                        <p class="text-xs text-gray-400 mb-4">Monthly Volume</p>
+                        <div class="flex justify-between text-xs border-t border-glassBorder pt-3">
+                            <span class="text-teal-400">99.8% Appr.</span>
+                            <span class="text-orange-400">0.05% CB</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MIDDLE SECTION: SIMULATOR & LIVE TXNS -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- ROUTING SIMULATOR -->
+                    <div id="simulator" class="lg:col-span-1 glass-card rounded-xl p-6 flex flex-col">
+                        <h3 class="text-lg font-semibold mb-6 flex items-center"><span class="material-icons mr-2 text-teal-400">route</span> Routing Simulator</h3>
+                        
+                        <div class="space-y-4 mb-6">
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Amount</label>
+                                <input type="number" id="sim-amount" value="150" class="w-full bg-navy-900 border border-glassBorder rounded p-2 text-sm text-white focus:border-teal-400 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Currency</label>
+                                <select id="sim-currency" class="w-full bg-navy-900 border border-glassBorder rounded p-2 text-sm text-white focus:border-teal-400 outline-none">
+                                    <option>EUR</option>
+                                    <option>SAR</option>
+                                    <option>USD</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Method</label>
+                                <select id="sim-method" class="w-full bg-navy-900 border border-glassBorder rounded p-2 text-sm text-white focus:border-teal-400 outline-none">
+                                    <option>Visa</option>
+                                    <option>Mastercard</option>
+                                    <option>Apple Pay</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Country</label>
+                                <select id="sim-country" class="w-full bg-navy-900 border border-glassBorder rounded p-2 text-sm text-white focus:border-teal-400 outline-none">
+                                    <option value="DE">Germany (DE)</option>
+                                    <option value="SA">Saudi Arabia (SA)</option>
+                                    <option value="US">United States (US)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button onclick="simulateRouting()" class="w-full bg-navy-700 hover:bg-navy-800 border border-teal-500 text-teal-400 transition-colors py-2 rounded font-semibold text-sm mb-6">
+                            Simulate Decision
+                        </button>
+
+                        <!-- Visualization -->
+                        <div class="mt-auto bg-navy-900/50 rounded p-4 border border-glassBorder relative overflow-hidden">
+                            <div class="flex justify-between items-center relative z-10">
+                                <div id="node-in" class="routing-node w-10 h-10 rounded-full border-2 border-gray-600 flex items-center justify-center bg-navy-800 text-gray-400">
+                                    <span class="material-icons text-sm">input</span>
+                                </div>
+                                <div id="node-engine" class="routing-node w-10 h-10 rounded-full border-2 border-gray-600 flex items-center justify-center bg-navy-800 text-gray-400">
+                                    <span class="material-icons text-sm">memory</span>
+                                </div>
+                                <div id="node-out" class="routing-node w-10 h-10 rounded-full border-2 border-gray-600 flex items-center justify-center bg-navy-800 text-gray-400 text-xs font-bold">
+                                    MID
+                                </div>
+                            </div>
+                            <!-- Track -->
+                            <div class="absolute top-1/2 left-8 right-8 h-0.5 bg-gray-700 -translate-y-1/2"></div>
+                            <!-- Animated Path -->
+                            <div id="animated-path" class="absolute top-1/2 left-8 h-0.5 bg-teal-400 -translate-y-1/2 shadow-[0_0_10px_#00E5D8]" style="width: 0%; transition: width 1.5s ease-in-out;"></div>
+                            
+                            <div id="sim-result" class="mt-4 text-center text-xs text-teal-400 h-4 font-mono opacity-0 transition-opacity"></div>
+                        </div>
+                    </div>
+
+                    <!-- LIVE TRANSACTIONS -->
+                    <div id="transactions" class="lg:col-span-2 glass-card rounded-xl p-6 flex flex-col">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-lg font-semibold flex items-center">
+                                <span class="material-icons mr-2 text-teal-400">receipt_long</span> Live Transactions
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
+                                <span class="text-xs text-teal-400 font-mono tracking-widest">LIVE</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex-1 overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="text-xs text-gray-500 uppercase tracking-wider border-b border-glassBorder">
+                                        <th class="pb-3 px-2">TXN ID</th>
+                                        <th class="pb-3 px-2">Method</th>
+                                        <th class="pb-3 px-2">Amount</th>
+                                        <th class="pb-3 px-2">Routing (MID)</th>
+                                        <th class="pb-3 px-2 text-right">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="live-tx-body">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ANALYTICS CHARTS -->
+                <div id="analytics" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="glass-card rounded-xl p-6 lg:col-span-2">
+                        <h3 class="text-sm font-semibold mb-4 text-gray-300">Volume Trend (7 Days)</h3>
+                        <div class="h-64 relative">
+                            <canvas id="volChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass-card rounded-xl p-6">
+                        <h3 class="text-sm font-semibold mb-4 text-gray-300">Payment Methods</h3>
+                        <div class="h-64 relative flex items-center justify-center">
+                            <canvas id="pieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BOTTOM ROW: CHARGEBACKS & INTEGRATIONS -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- CHARGEBACKS -->
+                    <div id="chargebacks" class="lg:col-span-2 glass-card rounded-xl p-6">
+                        <h3 class="text-lg font-semibold mb-6 flex items-center"><span class="material-icons mr-2 text-orange-400">money_off</span> Chargeback Management</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm border-collapse">
+                                <thead>
+                                    <tr class="text-xs text-gray-500 uppercase tracking-wider border-b border-glassBorder">
+                                        <th class="pb-3 px-2">CB Case</th>
+                                        <th class="pb-3 px-2">Amount</th>
+                                        <th class="pb-3 px-2">Reason</th>
+                                        <th class="pb-3 px-2">Deadline</th>
+                                        <th class="pb-3 px-2 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-glassBorder/50 hover:bg-glassBorder/20 transition">
+                                        <td class="py-3 px-2 font-mono text-gray-300">CB-92104</td>
+                                        <td class="py-3 px-2 money-val text-red-300" data-eur="145.50">€145.50</td>
+                                        <td class="py-3 px-2 text-gray-400">Fraudulent</td>
+                                        <td class="py-3 px-2 text-orange-400 text-xs">2 Days</td>
+                                        <td class="py-3 px-2 text-right">
+                                            <button class="bg-teal-500/10 text-teal-400 border border-teal-500/30 px-3 py-1 rounded text-xs hover:bg-teal-500/20 transition mr-1">Represent</button>
+                                            <button class="bg-gray-800 text-gray-400 border border-gray-600 px-3 py-1 rounded text-xs hover:bg-gray-700 transition">Accept</button>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-b border-glassBorder/50 hover:bg-glassBorder/20 transition">
+                                        <td class="py-3 px-2 font-mono text-gray-300">CB-92105</td>
+                                        <td class="py-3 px-2 money-val text-red-300" data-eur="89.00">€89.00</td>
+                                        <td class="py-3 px-2 text-gray-400">Not Recognized</td>
+                                        <td class="py-3 px-2 text-gray-400 text-xs">5 Days</td>
+                                        <td class="py-3 px-2 text-right">
+                                            <button class="bg-teal-500/10 text-teal-400 border border-teal-500/30 px-3 py-1 rounded text-xs hover:bg-teal-500/20 transition mr-1">Represent</button>
+                                            <button class="bg-gray-800 text-gray-400 border border-gray-600 px-3 py-1 rounded text-xs hover:bg-gray-700 transition">Accept</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- INTEGRATIONS & VAULT -->
+                    <div class="glass-card rounded-xl p-6 flex flex-col gap-6">
+                        <div>
+                            <h3 class="text-sm font-semibold mb-4 text-gray-300">System Status</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center text-sm">
+                                    <span class="flex items-center text-gray-400"><span class="w-8">AAPL</span> Apple Pay</span>
+                                    <span class="text-teal-400 flex items-center text-xs"><span class="material-icons text-[14px] mr-1">check_circle</span> Active</span>
+                                </div>
+                                <div class="flex justify-between items-center text-sm">
+                                    <span class="flex items-center text-gray-400"><span class="w-8 font-bold italic">VISA</span> Visa Net</span>
+                                    <span class="text-teal-400 flex items-center text-xs"><span class="material-icons text-[14px] mr-1">check_circle</span> Active</span>
+                                </div>
+                                <div class="flex justify-between items-center text-sm">
+                                    <span class="flex items-center text-gray-400"><span class="w-8 font-bold">MC</span> Mastercard</span>
+                                    <span class="text-teal-400 flex items-center text-xs"><span class="material-icons text-[14px] mr-1">check_circle</span> Active</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-glassBorder pt-4">
+                            <h3 class="text-sm font-semibold mb-4 text-gray-300">Bank Accounts (Settlement)</h3>
+                            <div class="bg-navy-900/50 rounded p-3 text-sm flex justify-between items-center border border-glassBorder mb-2">
+                                <span class="text-gray-400">EUR Pool (IE)</span>
+                                <span class="font-mono text-teal-400 money-val" data-eur="4500000">€4.50M</span>
+                            </div>
+                            <div class="bg-navy-900/50 rounded p-3 text-sm flex justify-between items-center border border-glassBorder">
+                                <span class="text-gray-400">SAR Ops (SA)</span>
+                                <span class="font-mono text-teal-400 money-val" data-eur="1200000">€1.20M</span>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-glassBorder pt-4 mt-auto">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-semibold text-gray-300 flex items-center"><span class="material-icons text-sm mr-2">vpn_key</span> Token Vault</span>
+                                <span class="text-xs text-gray-500">1.4M Stored</span>
+                            </div>
+                            <button onclick="showToast('Exporting vault data securely to CSV...')" class="w-full bg-navy-700 hover:bg-navy-600 border border-glassBorder text-gray-300 transition-colors py-2 rounded text-xs font-semibold flex items-center justify-center">
+                                <span class="material-icons text-sm mr-2">download</span> Export Tokens (CSV)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            
+            <footer class="mt-auto px-8 py-6 text-center text-xs text-gray-600 border-t border-glassBorder">
+                Demo Environment - For Client Presentation Only &copy; 2026 IBO Payments
+            </footer>
+        </main>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        /* --- STATE --- */
+        let isSar = false;
+        const exchangeRate = 4.0; // 1 EUR = 4 SAR
+        const chartInstances = {};
+
+        /* --- LOGIN LOGIC --- */
+        function login() {
+            const btn = document.querySelector('#login-screen button');
+            btn.innerHTML = '<span class="material-icons animate-spin mr-2">loop</span> Authenticating...';
+            btn.classList.add('opacity-80', 'cursor-not-allowed');
+            
+            setTimeout(() => {
+                document.getElementById('login-screen').classList.add('fade-out');
+                setTimeout(() => {
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('app-screen').classList.remove('hidden');
+                    document.getElementById('app-screen').classList.add('fade-in');
+                    initDashboard();
+                }, 500);
+            }, 1000);
+        }
+
+        /* --- DASHBOARD INIT --- */
+        function initDashboard() {
+            updateCurrencyDisplay();
+            initCharts();
+            generateInitialTxns();
+            setInterval(addLiveTransaction, 4500);
+            showToast('Authenticated successfully. Welcome to IBO Ops.');
+        }
+
+        /* --- CURRENCY TOGGLE --- */
+        function toggleCurrency() {
+            isSar = !isSar;
+            const knob = document.getElementById('currency-toggle-knob');
+            const lblEur = document.getElementById('lbl-eur');
+            const lblSar = document.getElementById('lbl-sar');
+            
+            if (isSar) {
+                knob.classList.add('translate-x-5');
+                lblSar.classList.replace('text-gray-500', 'text-teal-400');
+                lblEur.classList.replace('text-teal-400', 'text-gray-500');
+                if(!lblEur.classList.contains('text-gray-500')) lblEur.classList.add('text-gray-500');
+            } else {
+                knob.classList.remove('translate-x-5');
+                lblEur.classList.replace('text-gray-500', 'text-teal-400');
+                lblSar.classList.replace('text-teal-400', 'text-gray-500');
+                if(!lblSar.classList.contains('text-gray-500')) lblSar.classList.add('text-gray-500');
+            }
+            
+            updateCurrencyDisplay();
+            updateCharts();
+        }
+
+        function updateCurrencyDisplay() {
+            const formatConfig = isSar 
+                ? { locale: 'en-SA', style: 'currency', currency: 'SAR', def: 0 }
+                : { locale: 'en-IE', style: 'currency', currency: 'EUR', def: 0 };
+                
+            const formatter = new Intl.NumberFormat(formatConfig.locale, { 
+                style: 'currency', 
+                currency: formatConfig.currency,
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2
+            });
+
+            document.querySelectorAll('.money-val').forEach(el => {
+                const baseVal = parseFloat(el.getAttribute('data-eur'));
+                const finalVal = isSar ? baseVal * exchangeRate : baseVal;
+                
+                // Keep .00 if it's a small amount, remove for big amounts
+                if(finalVal > 1000000) {
+                    el.innerText = formatter.format(finalVal).replace(/\.00$/, '');
+                } else {
+                    el.innerText = formatter.format(finalVal);
+                }
+            });
+        }
+
+        /* --- ROUTING SIMULATOR --- */
+        function simulateRouting() {
+            const amt = document.getElementById('sim-amount').value;
+            const country = document.getElementById('sim-country').value;
+            const resEl = document.getElementById('sim-result');
+            const path = document.getElementById('animated-path');
+            const nIn = document.getElementById('node-in');
+            const nEng = document.getElementById('node-engine');
+            const nOut = document.getElementById('node-out');
+
+            // Reset
+            path.style.width = '0%';
+            resEl.style.opacity = '0';
+            [nIn, nEng, nOut].forEach(n => n.classList.remove('active'));
+
+            setTimeout(() => { nIn.classList.add('active'); }, 100);
+            setTimeout(() => { path.style.width = '50%'; }, 300);
+            setTimeout(() => { nEng.classList.add('active'); }, 800);
+            setTimeout(() => { path.style.width = '100%'; }, 1000);
+            
+            setTimeout(() => { 
+                nOut.classList.add('active');
+                let targetMid = 'MID-472819';
+                if(country === 'SA') targetMid = 'MID-472820';
+                if(amt > 10000) targetMid = 'MID-472822';
+                
+                nOut.innerText = targetMid.split('-')[1];
+                resEl.innerText = `Routed to ${targetMid} | Latency: 42ms`;
+                resEl.style.opacity = '1';
+                showToast(`Simulation Complete: Transaction routed to ${targetMid}`);
+            }, 1500);
+        }
+
+        /* --- LIVE TRANSACTIONS --- */
+        const methods = ['Apple Pay', 'Visa', 'Mastercard'];
+        const mids = ['MID-472819', 'MID-472820', 'MID-472821', 'MID-472822'];
+        
+        function generateRowHtml() {
+            const id = 'TXN-' + Math.floor(100000 + Math.random() * 900000);
+            const method = methods[Math.floor(Math.random() * methods.length)];
+            const mid = mids[Math.floor(Math.random() * mids.length)];
+            const eurAmt = (Math.random() * 500 + 10).toFixed(2);
+            
+            return `
+                <td class="py-3 px-2 font-mono text-gray-300">#${id}</td>
+                <td class="py-3 px-2 text-gray-400">${method}</td>
+                <td class="py-3 px-2 font-semibold text-white money-val" data-eur="${eurAmt}">€${eurAmt}</td>
+                <td class="py-3 px-2 text-gray-400 text-xs">${mid}</td>
+                <td class="py-3 px-2 text-right">
+                    <span class="bg-teal-400/10 text-teal-400 border border-teal-400/20 px-2 py-1 rounded uppercase text-[10px] font-bold">Approved</span>
+                </td>
+            `;
+        }
+
+        function generateInitialTxns() {
+            const tbody = document.getElementById('live-tx-body');
+            for(let i=0; i<6; i++) {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-glassBorder/50 hover:bg-glassBorder/20 transition";
+                tr.innerHTML = generateRowHtml();
+                tbody.appendChild(tr);
+            }
+        }
+
+        function addLiveTransaction() {
+            const tbody = document.getElementById('live-tx-body');
+            const tr = document.createElement('tr');
+            tr.className = "border-b border-glassBorder/50 hover:bg-glassBorder/20 transition fade-in bg-teal-400/5";
+            tr.innerHTML = generateRowHtml();
+            tbody.prepend(tr);
+            
+            setTimeout(() => tr.classList.remove('bg-teal-400/5'), 1000);
+
+            if(tbody.children.length > 6) {
+                tbody.lastElementChild.remove();
+            }
+            updateCurrencyDisplay(); // Ensure new row has correct currency
+        }
+
+        /* --- TOAST SYSTEM --- */
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast text-sm text-gray-200';
+            toast.innerHTML = `<span class="material-icons text-teal-400 text-sm align-middle mr-2">info</span> ${message}`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4500);
+        }
+
+        /* --- CHARTS (Chart.js) --- */
+        Chart.defaults.color = '#9ca3af';
+        Chart.defaults.font.family = 'Inter';
+
+        function initCharts() {
+            const ctxVol = document.getElementById('volChart').getContext('2d');
+            const gradientVol = ctxVol.createLinearGradient(0, 0, 0, 400);
+            gradientVol.addColorStop(0, 'rgba(0, 229, 216, 0.4)');
+            gradientVol.addColorStop(1, 'rgba(0, 229, 216, 0.0)');
+
+            chartInstances.vol = new Chart(ctxVol, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Volume',
+                        data: [1.2, 1.9, 1.5, 2.2, 2.8, 2.1, 2.5], // base EUR millions
+                        borderColor: '#00E5D8',
+                        backgroundColor: gradientVol,
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false } },
+                        x: { grid: { display: false }, border: { display: false } }
+                    }
+                }
+            });
+
+            const ctxPie = document.getElementById('pieChart').getContext('2d');
+            chartInstances.pie = new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Visa', 'Mastercard', 'Apple Pay', 'Other'],
+                    datasets: [{
+                        data: [45, 30, 20, 5],
+                        backgroundColor: ['#00E5D8', '#113355', '#4ade80', '#fbbf24'],
+                        borderWidth: 0,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    cutout: '75%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 15 } }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            if(!chartInstances.vol) return;
+            const mult = isSar ? exchangeRate : 1;
+            const baseData = [1.2, 1.9, 1.5, 2.2, 2.8, 2.1, 2.5];
+            chartInstances.vol.data.datasets[0].data = baseData.map(v => v * mult);
+            chartInstances.vol.update();
+        }
+
+        // Initialize currency toggle label on load
+        document.getElementById('lbl-eur').classList.add('text-teal-400');
+    </script>
+</body>
+</html>
